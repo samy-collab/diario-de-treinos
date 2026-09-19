@@ -36,15 +36,28 @@ Depois que o documento é criado, o `onSnapshot` atualiza a lista automaticament
 1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
 2. Adicione um app Web ao projeto e copie a configuração apresentada.
 3. Ative o provedor **Email/Password** em **Authentication > Sign-in method**.
-4. Crie o banco em **Firestore Database**.
-5. Confira os valores de `src/lib/firebaseConfig.example.ts` com a configuração do Firebase Console.
+4. Crie o banco padrão em **Firestore Database > Create database**.
+5. Copie `src/lib/firebaseConfig.example.ts` para `src/lib/firebaseConfig.ts` e preencha os valores do Firebase Console.
 6. Publique as regras de `firestore.rules` no Firestore Console ou pela Firebase CLI.
+
+Para publicar pela CLI, faça login no Firebase e execute na raiz do projeto:
+
+```bash
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:rules
+```
+
+O arquivo `.firebaserc` já aponta para o projeto `my-app-firebase-3fa29`.
 
 Se a tela ficar carregando, confirme também que a **Cloud Firestore API** está habilitada no projeto:
 
 <https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=my-app-firebase-3fa29>
 
-Depois de habilitar a API ou criar o banco, aguarde alguns segundos e reinicie o Expo.
+Se a API já estiver habilitada, crie também o banco Firestore padrão:
+
+<https://console.cloud.google.com/datastore/setup?project=my-app-firebase-3fa29>
+
+Depois de habilitar a API e criar o banco, aguarde alguns segundos e reinicie o Expo.
 
 ## Validação do usuário
 
@@ -69,7 +82,7 @@ Neste exemplo:
 
 Não existe autenticação anônima neste app.
 
-O app importa a configuração de `src/lib/firebaseConfig.example.ts`. Os valores da configuração Web identificam o projeto, mas as regras do Firestore continuam sendo a proteção dos dados.
+O app importa a configuração local `src/lib/firebaseConfig.ts`. Esse arquivo é ignorado pelo Git; somente o arquivo de exemplo é versionado.
 
 ## Executar
 
