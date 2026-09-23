@@ -35,6 +35,8 @@ yarn-error.*
 
 # Firebase local configuration
 src/lib/firebaseConfig.ts
+.env
+.env.local
 
 
 # typescript
@@ -43,3 +45,7 @@ src/lib/firebaseConfig.ts
 # generated native folders
 /ios
 /android
+
+# local study artifacts and temporary validation files
+/output/
+/tmp/

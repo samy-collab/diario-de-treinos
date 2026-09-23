@@ -1,156 +1,112 @@
-# Firestore Expo Example
+# Meu Treino — Diário de Treinos
 
-Exemplo didático de um app Expo + React Native com TypeScript, Expo Router, Firebase Authentication e Cloud Firestore.
+Trabalho final da disciplina **Desafio de Desenvolvimento Mobile**.
 
-O app possui somente duas páginas:
+O Meu Treino é um aplicativo simples para registrar atividades físicas e acompanhar a frequência de exercícios. Cada pessoa cria sua própria conta e enxerga somente os treinos que cadastrou.
 
-- `login`: entrada com e-mail e senha ou criação de uma conta.
-- `index`: criação e listagem em tempo real das tarefas do usuário autenticado.
+## Por que escolhi esse tema?
 
-Não existe autenticação anônima neste projeto.
+Muitas vezes começamos a treinar, mas não lembramos quantos dias treinamos ou quanto tempo dedicamos no mês. A proposta do aplicativo é guardar esse histórico de uma forma direta, sem precisar de planilhas ou anotações em papel.
 
-## 1. Pré-requisitos
+## Funcionalidades
 
-Instale ou tenha disponível:
+- criação de conta com nome, idade e confirmação de senha, login e logout com Firebase Authentication;
+- confirmação antes de encerrar a sessão;
+- verificação da sessão antes de exibir as telas internas;
+- cadastro, listagem, detalhes, edição e exclusão de treinos;
+- confirmação antes de excluir;
+- filtro por modalidade e mensagem quando nenhum resultado é encontrado;
+- carregamento, mensagens de erro e estado vazio;
+- resumo do mês com quantidade de treinos e total de minutos;
+- separação dos dados por usuário;
+- persistência no Cloud Firestore e da sessão no dispositivo.
 
-- Node.js 22 ou superior.
-- npm.
-- Uma conta Google para acessar o Firebase Console.
-- Expo Go no celular, caso queira testar no Android ou iOS.
+## Modelo de dados
 
-Confira as versões instaladas:
+O perfil fica em `users/{uid}` e contém:
 
-```bash
-node --version
-npm --version
-```
+| Campo | Tipo | Exemplo |
+|---|---|---|
+| `name` | texto | `Ana` |
+| `age` | número inteiro | `25` |
+| `createdAt` | timestamp | data criada pelo servidor |
 
-## 2. Criar o projeto no Firebase
+Cada documento em `users/{uid}/workouts/{workoutId}` possui:
 
-1. Abra o [Firebase Console](https://console.firebase.google.com/).
-2. Clique em **Create a project**.
-3. Escolha um nome para o projeto e conclua a criação.
-4. Dentro do projeto, clique no ícone da Web `</>` para adicionar um app Web.
-5. Dê um nome ao app Web e registre-o.
-6. Guarde a configuração exibida pelo Firebase. Ela será usada no arquivo local do app.
+| Campo | Tipo | Exemplo |
+|---|---|---|
+| `activity` | texto | `Corrida` |
+| `date` | texto no formato AAAA-MM-DD | `2026-09-22` |
+| `durationMinutes` | número | `45` |
+| `distanceKm` | número | `5.2` |
+| `loadKg` | número | `0` |
+| `intensity` | texto | `Moderada` |
+| `notes` | texto | `Treino no parque` |
+| `createdAt` | timestamp | data criada pelo servidor |
 
-A configuração tem este formato:
+Distância e carga são opcionais na tela e são armazenadas como zero quando não informadas.
 
-```ts
-const firebaseConfig = {
-  apiKey: 'SUA_API_KEY',
-  authDomain: 'SEU_PROJETO.firebaseapp.com',
-  projectId: 'SEU_PROJECT_ID',
-  storageBucket: 'SEU_PROJETO.firebasestorage.app',
-  messagingSenderId: 'SEU_SENDER_ID',
-  appId: 'SEU_APP_ID',
-};
-```
+## Regra de negócio
 
-## 3. Habilitar login com e-mail e senha
+A duração deve ser maior que zero. Distância e carga nunca podem ser negativas. Essas validações acontecem no formulário e também nas regras do Firestore.
 
-No Firebase Console:
+Na tela inicial, o app usa somente os registros do mês atual vindos do Firestore para calcular:
 
-1. Acesse **Build > Authentication**.
-2. Clique em **Get started**, se necessário.
-3. Abra a aba **Sign-in method**.
-4. Selecione **Email/Password**.
-5. Ative **Email/Password**.
-6. Salve.
+- quantidade de treinos realizados;
+- total de minutos treinados.
 
-O botão **Criar conta** do app usa `createUserWithEmailAndPassword`. O botão **Entrar** usa `signInWithEmailAndPassword`.
+Assim, o resumo continua correto depois de fechar e abrir o aplicativo.
 
-## 4. Criar o banco Firestore
+## Tecnologias e organização
 
-No Firebase Console:
+- React Native, Expo e TypeScript;
+- Expo Router para navegação e proteção das telas;
+- Firebase Authentication;
+- Cloud Firestore;
+- AsyncStorage para persistência da sessão no React Native.
 
-1. Acesse **Build > Firestore Database**.
-2. Clique em **Create database**.
-3. Escolha **Production mode**.
-4. Escolha a região do banco.
-5. Confirme em **Create**.
+As telas ficam em `src/app`, os componentes reutilizáveis em `src/components`, os acessos ao Firebase em `src/services`, o estado de autenticação em `src/context` e os tipos em `src/types`.
 
-Se a API ainda não estiver habilitada, abra a [Cloud Firestore API](https://console.cloud.google.com/apis/library/firestore.googleapis.com) e clique em **Enable**.
+## Configuração do Firebase
 
-O banco padrão precisa existir antes de o app conseguir listar ou criar tarefas. Sem ele, o Firebase retorna `The database (default) does not exist`.
-
-## 5. Configurar o arquivo local do app
-
-Na raiz deste projeto, execute:
+1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
+2. Em **Authentication > Sign-in method**, habilite **E-mail/senha**.
+3. Em **Firestore Database**, crie o banco no modo de produção.
+4. Nas configurações do projeto, adicione um aplicativo Web e copie os dados exibidos.
+5. Copie `.env.example` para `.env` e substitua os valores:
 
 ```bash
-cp src/lib/firebaseConfig.example.ts src/lib/firebaseConfig.ts
+cp .env.example .env
 ```
 
-Abra `src/lib/firebaseConfig.ts` e substitua os valores de exemplo pelos valores copiados na etapa 2.
-
-O arquivo usado pelo app é:
-
-```text
-src/lib/firebaseConfig.ts
+```env
+EXPO_PUBLIC_FIREBASE_API_KEY=sua_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=seu-project-id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=seu-projeto.firebasestorage.app
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=seu_sender_id
+EXPO_PUBLIC_FIREBASE_APP_ID=seu_app_id
 ```
 
-Esse arquivo está no `.gitignore` e não deve ser commitado. Somente `firebaseConfig.example.ts`, com placeholders, deve ser versionado.
+O arquivo `.env` não deve ser enviado ao GitHub. As chaves públicas de configuração identificam o app, enquanto a proteção real dos dados é feita pelas regras do Firestore. Nunca inclua uma chave de conta de serviço no aplicativo.
 
-Confirme que ele está ignorado:
+## Regras de segurança
 
-```bash
-git check-ignore -v src/lib/firebaseConfig.ts
-```
+O arquivo [`firestore.rules`](firestore.rules) está incluído no projeto. O perfil e a coleção de treinos usam o `uid` no caminho, e as regras comparam esse valor com `request.auth.uid`. Portanto, a conta B não consegue ler ou alterar o perfil nem os treinos da conta A, mesmo tentando acessar o banco fora da interface.
 
-## 6. Publicar as regras do Firestore
-
-As regras deste projeto permitem que um usuário autenticado leia e crie somente documentos cujo `userId` seja o próprio ID de autenticação. Elas estão em [firestore.rules](firestore.rules).
-
-Use exatamente estas regras:
-
-```firestore
-rules_version = '2';
-
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /tasks/{taskId} {
-      allow read: if request.auth != null
-        && resource.data.userId == request.auth.uid;
-
-      allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.title is string
-        && request.resource.data.title.size() > 0
-        && request.resource.data.title.size() <= 120;
-
-      allow update, delete: if false;
-    }
-  }
-}
-```
-
-Depois de publicar, a coleção `tasks` não precisa ser criada manualmente. Ela será criada automaticamente quando o app executar `addDoc` pela primeira vez.
-
-### Opção A: Firebase Console
-
-1. Acesse **Build > Firestore Database > Rules**.
-2. Copie o conteúdo de `firestore.rules`.
-3. Cole no editor de regras.
-4. Clique em **Publish**.
-
-### Opção B: Firebase CLI
-
-O arquivo `.firebaserc` já aponta para o projeto `my-app-firebase-3fa29`. Para usar outro projeto, altere esse arquivo ou selecione o projeto com `firebase use`.
-
-Faça login e publique as regras:
+Para publicar pelo terminal:
 
 ```bash
 npx firebase-tools login
-npx firebase-tools projects:list
+npx firebase-tools use SEU_PROJECT_ID
 npx firebase-tools deploy --only firestore:rules
 ```
 
-O arquivo `firebase.json` informa à CLI que as regras estão em `firestore.rules`.
+Também é possível copiar o conteúdo de `firestore.rules` em **Firestore Database > Rules** e clicar em **Publicar**.
 
-## 7. Instalar e executar o app
+## Instalação e execução
 
-Na raiz de `firestore-expo-example`:
+Requisitos: Node.js 22 ou superior, npm e Expo Go no celular.
 
 ```bash
 npm install
@@ -158,112 +114,50 @@ npm run typecheck
 npx expo start -c
 ```
 
-Para testar no celular:
+Escaneie o QR Code com o Expo Go. Computador e celular devem estar na mesma rede. Para abrir no navegador, execute `npm run web`.
 
-1. Instale o Expo Go.
-2. Deixe o computador e o celular na mesma rede Wi-Fi.
-3. Escaneie o QR code exibido pelo Expo.
+## Teste sugerido antes da entrega
 
-Para testar no navegador:
+1. Abra o app sem sessão e confira que somente o login aparece.
+2. Crie a conta A e cadastre dois treinos.
+3. Abra um treino, edite e confira a atualização.
+4. Use o filtro e teste um filtro sem resultados.
+5. Feche e abra o app para verificar sessão e dados.
+6. Saia, crie a conta B e confirme que ela começa sem treinos.
+7. Volte para a conta A e exclua um registro, confirmando o aviso.
+8. Tente salvar duração zero ou distância negativa e confira a validação.
 
-```bash
-npm run web
-```
+## Capturas de tela
 
-## 8. Testar o fluxo completo
+<table>
+  <tr>
+    <td align="center"><strong>Login</strong><br><img src="assets/screenshots/01-login.png" width="240" alt="Tela de login"></td>
+    <td align="center"><strong>Criação de conta</strong><br><img src="assets/screenshots/02-criar-conta.png" width="240" alt="Tela de criação de conta com confirmação de senha"></td>
+    <td align="center"><strong>Lista vazia</strong><br><img src="assets/screenshots/03-lista-vazia.png" width="240" alt="Tela inicial sem treinos cadastrados"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Novo treino - início</strong><br><img src="assets/screenshots/04-novo-treino-inicio.png" width="240" alt="Início do formulário com perfil, modalidade e data"></td>
+    <td align="center"><strong>Novo treino - conclusão</strong><br><img src="assets/screenshots/05-novo-treino-final.png" width="240" alt="Final do formulário com intensidade, observações e botões"></td>
+    <td align="center"><strong>Resumo mensal</strong><br><img src="assets/screenshots/06-lista-resumo-mensal.png" width="240" alt="Lista com atividade salva e resumo mensal"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Detalhes do treino</strong><br><img src="assets/screenshots/07-detalhes-treino.png" width="240" alt="Detalhes de um treino salvo"></td>
+  </tr>
+</table>
 
-1. Abra o app na tela de login.
-2. Informe um e-mail válido e uma senha com pelo menos 6 caracteres.
-3. Clique em **Criar conta**.
-4. Confirme no Firebase Console que o usuário apareceu em **Authentication > Users**.
-5. Crie uma tarefa na tela inicial.
-6. Confirme que a tarefa apareceu na lista.
-7. Recarregue o app e confirme que a tarefa continua salva.
-8. Crie uma segunda conta e confirme que ela não vê as tarefas da primeira conta.
+## Roteiro de apresentação (8 a 10 minutos)
 
-## 9. Como a criação funciona
+1. **Problema e proposta (1 min):** explicar que o app ajuda a manter um histórico simples de atividades físicas.
+2. **Conta e proteção (1 min):** criar ou entrar em uma conta e mostrar que as telas internas não aparecem sem sessão.
+3. **CRUD (3 min):** cadastrar, abrir, editar e excluir um treino.
+4. **Filtro e regra de negócio (1 min):** filtrar uma modalidade e mostrar o resumo mensal; tentar cadastrar um valor inválido.
+5. **Persistência e duas contas (1 min):** mostrar que os dados continuam após reiniciar e que outra conta não os enxerga.
+6. **Código e segurança (2 min):** apresentar rapidamente `src/services`, os tipos TypeScript, o card reutilizável e `firestore.rules`.
 
-O exemplo deixa a criação na tela para facilitar a explicação em aula:
+## Principais pontos para explicar
 
-```ts
-await addDoc(collection(db, 'tasks'), {
-  title: 'Estudar Firestore', // valor da tarefa
-  userId: user.uid, // dono do documento
-  createdAt: serverTimestamp(), // data do servidor Firebase
-});
-```
-
-Leia o trecho em três partes:
-
-1. `collection(db, 'tasks')` escolhe a coleção `tasks`.
-2. `addDoc(...)` cria um documento com um ID automático.
-3. O objeto contém os campos que serão salvos.
-
-O campo `userId` é importante porque as regras usam esse valor para separar os dados de cada usuário. Depois que o documento é criado, o `onSnapshot` atualiza a lista automaticamente.
-
-## 10. Validação do usuário
-
-Antes de mostrar as tarefas, o app usa `onAuthStateChanged` para verificar se existe um usuário autenticado:
-
-```ts
-onAuthStateChanged(auth, (user) => {
-  setUserId(user?.uid ?? null);
-});
-
-if (!userId) {
-  return <Redirect href="/login" />;
-}
-```
-
-Sem usuário autenticado, a página de tarefas não é exibida.
-
-## 11. Solução de problemas
-
-### `Missing or insufficient permissions`
-
-Verifique:
-
-- Se o provedor **Email/Password** está habilitado.
-- Se você clicou em **Publish** nas regras do Firestore.
-- Se o usuário realmente conseguiu entrar ou criar uma conta.
-- Se o app está usando o mesmo projeto indicado em `firebaseConfig.ts`.
-- Se a consulta usa `where('userId', '==', userId)`, como neste projeto.
-
-### `The database (default) does not exist`
-
-Crie o banco em **Firestore Database > Create database** e aguarde alguns segundos antes de reiniciar o Expo.
-
-### `auth/invalid-credential`
-
-Confira o e-mail e a senha. Se for o primeiro acesso, use **Criar conta** antes de usar **Entrar**.
-
-### A tela fica carregando ou o botão fica em `Salvando...`
-
-Confira a conexão de internet, a existência do banco e a publicação das regras. O app interrompe a espera depois de alguns segundos e exibe uma mensagem de diagnóstico.
-
-Depois de alterar a configuração local, reinicie o bundler limpando o cache:
-
-```bash
-npx expo start -c
-```
-
-## Estrutura principal
-
-```text
-src/
-  app/
-    _layout.tsx             # Stack principal
-    login.tsx               # Login e criação de conta
-    index.tsx               # Criação e listagem de tarefas
-  lib/
-    firebase.ts             # Inicialização do Firebase
-    firebaseConfig.ts       # Configuração local, ignorada pelo Git
-    firebaseConfig.example.ts # Modelo sem credenciais
-  services/
-    tasks.ts                # Auth e leitura em tempo real
-  types/
-    task.ts                 # Tipo da tarefa
-firestore.rules             # Regras de acesso do Firestore
-firebase.json               # Configuração da Firebase CLI
-.firebaserc                 # Projeto Firebase selecionado
-```
+- O Firebase Authentication informa quem é o usuário atual.
+- O `uid` do usuário faz parte do caminho de cada treino no Firestore.
+- As regras do Firestore são a segurança real; o filtro da interface serve apenas para usabilidade.
+- O listener em tempo real atualiza a `FlatList` após criar, editar ou excluir.
+- O resumo mensal é calculado com os dados persistidos, não com valores fixos.

@@ -1,381 +1,68 @@
-import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import {
-  ActivityIndicator,
-  Alert,
-  Button,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { WorkoutCard } from '@/components/WorkoutCard';
+import { useAuth } from '@/context/AuthContext';
+import { logout, saveUserProfile } from '@/services/auth';
+import { subscribeToWorkouts } from '@/services/workouts';
+import { WORKOUT_TYPES, type Workout } from '@/types/workout';
+import { currentMonth } from '@/utils/format';
 
-import { auth, db } from '@/lib/firebase';
-import { subscribeToTasks } from '@/services/tasks';
-import type { Task } from '@/types/task';
+const ALL = 'Todos';
 
-const FIRESTORE_TIMEOUT = 10000;
+export default function WorkoutsScreen() {
+  const router = useRouter(); const { user, profile } = useAuth();
+  const [workouts, setWorkouts] = useState<Workout[]>([]); const [activity, setActivity] = useState<string>(ALL); const [isLoading, setIsLoading] = useState(true); const [error, setError] = useState('');
+  const [isLogoutConfirmationVisible, setIsLogoutConfirmationVisible] = useState(false);
+  const [profileName, setProfileName] = useState(''); const [profileAge, setProfileAge] = useState(''); const [isSavingProfile, setIsSavingProfile] = useState(false); const [profileError, setProfileError] = useState('');
+  // Listener em tempo real: entrega a lista inicial e futuras alteracoes.
+  // Seu retorno cancela a assinatura quando a tela e desmontada.
+  useEffect(() => { if (!user) return; return subscribeToWorkouts(user.uid, (items) => { setWorkouts(items); setError(''); setIsLoading(false); }, () => { setError('Não foi possível carregar os treinos. Confira sua internet e as regras do Firestore.'); setIsLoading(false); }); }, [user]);
+  // useMemo recalcula o filtro apenas quando a modalidade ou a lista mudam.
+  const visibleWorkouts = useMemo(() => workouts.filter((item) => activity === ALL || item.activity === activity), [activity, workouts]);
+  // Regra de negocio: estatisticas mensais calculadas com dados do Firestore.
+  const monthWorkouts = useMemo(() => workouts.filter((item) => item.date.startsWith(currentMonth())), [workouts]);
+  const monthMinutes = monthWorkouts.reduce((total, item) => total + item.durationMinutes, 0);
 
-export default function TasksScreen() {
-  const [title, setTitle] = useState('');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isCheckingUser, setIsCheckingUser] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Abre o modal multiplataforma antes de encerrar a sessao.
+  function confirmLogout() { setIsLogoutConfirmationVisible(true); }
+  function handleLogout() { setIsLogoutConfirmationVisible(false); void logout(); }
 
-  useEffect(() => {
-    let unsubscribeTasks: (() => void) | undefined;
-    let loadingTimeout: ReturnType<typeof setTimeout> | undefined;
-
-    // Primeiro verificamos se existe um usuário autenticado.
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setIsCheckingUser(false);
-
-      if (!user) {
-        if (loadingTimeout) clearTimeout(loadingTimeout);
-        unsubscribeTasks?.();
-        unsubscribeTasks = undefined;
-        setUserId(null);
-        setIsLoading(false);
-        return;
-      }
-
-      unsubscribeTasks?.();
-      if (loadingTimeout) clearTimeout(loadingTimeout);
-      setUserId(user.uid);
-      setIsLoading(true);
-
-      // Se o Firestore não responder, a tela não fica carregando para sempre.
-      loadingTimeout = setTimeout(() => {
-        setIsLoading(false);
-        setErrorMessage(
-          'O Firestore não respondeu. Verifique a internet, se o banco foi criado e se as regras foram publicadas.',
-        );
-      }, FIRESTORE_TIMEOUT);
-
-      unsubscribeTasks = subscribeToTasks(
-        user.uid,
-        (nextTasks) => {
-          if (loadingTimeout) clearTimeout(loadingTimeout);
-          setErrorMessage(null);
-          setTasks(nextTasks);
-          setIsLoading(false);
-        },
-        (error) => {
-          if (loadingTimeout) clearTimeout(loadingTimeout);
-          setErrorMessage(getErrorMessage(error));
-          setIsLoading(false);
-        },
-      );
-    });
-
-    return () => {
-      unsubscribeAuth();
-      unsubscribeTasks?.();
-      if (loadingTimeout) clearTimeout(loadingTimeout);
-    };
-  }, []);
-
-  if (isCheckingUser) {
-    return <LoadingScreen message="Verificando usuário..." />;
-  }
-
-  if (!userId) {
-    return <Redirect href="/login" />;
-  }
-
-  async function handleCreateTask() {
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      Alert.alert('Título obrigatório', 'Digite um título para criar a tarefa.');
-      return;
-    }
-
-    if (!userId) {
-      Alert.alert('Aguarde', 'A autenticação ainda não terminou.');
-      return;
-    }
-
+  async function handleSaveProfile() {
+    const age = Number(profileAge);
+    if (!profileName.trim()) return setProfileError('Informe seu nome.');
+    if (!Number.isInteger(age) || age < 1 || age > 120) return setProfileError('Informe uma idade válida entre 1 e 120 anos.');
+    if (!user) return;
     try {
-      setIsSaving(true);
-      setErrorMessage(null);
-
-      // 1. collection(db, 'tasks') aponta para a coleção "tasks".
-      // 2. addDoc cria um novo documento com um ID automático.
-      // 3. O segundo argumento contém os campos que serão salvos.
-      await withTimeout(
-        addDoc(collection(db, 'tasks'), {
-          title: trimmedTitle, // Texto digitado pelo aluno.
-          userId, // Permite salvar e consultar apenas as tarefas deste usuário.
-          createdAt: serverTimestamp(), // Data gerada pelo servidor do Firebase.
-        }),
-        FIRESTORE_TIMEOUT,
-      );
-
-      setTitle('');
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      setIsSavingProfile(true); setProfileError('');
+      await saveUserProfile(user.uid, profileName.trim(), age);
+    } catch {
+      setProfileError('Não foi possível salvar o perfil. Tente novamente.');
     } finally {
-      setIsSaving(false);
+      setIsSavingProfile(false);
     }
   }
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}>
-        <View style={styles.intro}>
-          <Text style={styles.eyebrow}>FIRESTORE + EXPO</Text>
-          <Text style={styles.heading}>Minhas tarefas</Text>
-          <Text style={styles.description}>
-            Crie documentos e acompanhe a coleção em tempo real.
-          </Text>
-        </View>
-
-        <View style={styles.form}>
-          <TextInput
-            autoCapitalize="sentences"
-            editable={!isSaving}
-            maxLength={120}
-            onChangeText={setTitle}
-            onSubmitEditing={() => void handleCreateTask()}
-            placeholder="Ex.: estudar Firestore"
-            returnKeyType="done"
-            style={styles.input}
-            value={title}
-          />
-          <Button
-            disabled={isSaving}
-            onPress={() => void handleCreateTask()}
-            title={isSaving ? 'Salvando...' : 'Adicionar'}
-            color="#2563eb"
-          />
-        </View>
-
-        {errorMessage ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorTitle}>Não foi possível conectar ao Firebase</Text>
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        ) : null}
-
-        {isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color="#2563eb" size="large" />
-            <Text style={styles.muted}>Carregando tarefas...</Text>
-          </View>
-        ) : (
-          <FlatList
-            contentContainerStyle={tasks.length === 0 ? styles.emptyList : styles.list}
-            data={tasks}
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>Nenhuma tarefa ainda</Text>
-                <Text style={styles.muted}>A primeira tarefa aparecerá aqui.</Text>
-              </View>
-            }
-            renderItem={({ item }) => <TaskItem task={item} />}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
-
-function LoadingScreen({ message }: { message: string }) {
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.centered}>
-        <ActivityIndicator color="#2563eb" size="large" />
-        <Text style={styles.muted}>{message}</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function TaskItem({ task }: { task: Task }) {
-  return (
-    <View style={styles.taskItem}>
-      <View style={styles.taskDot} />
-      <View style={styles.taskContent}>
-        <Text style={styles.taskTitle}>{task.title}</Text>
-        <Text style={styles.taskDate}>
-          {task.createdAt ? task.createdAt.toLocaleString('pt-BR') : 'Salvando...'}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function getErrorMessage(error: unknown) {
-  if (!(error instanceof Error)) return 'Ocorreu um erro inesperado.';
-
-  if (
-    error.message.includes('permission-denied') ||
-    error.message.includes('Missing or insufficient permissions')
-  ) {
-    return 'A gravação foi recusada. Publique as regras do Firestore e verifique o usuário autenticado.';
-  }
-
-  if (error.message.includes('not-found') || error.message.includes('database')) {
-    return 'O banco Firestore ainda não existe. Crie o banco padrão no Firebase Console e tente novamente.';
-  }
-
-  return error.message;
-}
-
-function withTimeout<T>(promise: Promise<T>, milliseconds: number) {
-  return new Promise<T>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(
-        new Error(
-          'O Firestore não respondeu. Verifique a internet, se o banco foi criado e se as regras foram publicadas.',
-        ),
-      );
-    }, milliseconds);
-
-    promise.then(
-      (value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timeoutId);
-        reject(error);
-      },
-    );
-  });
+  return <SafeAreaView style={styles.safeArea}><View style={styles.container}>
+    <View style={styles.headerRow}><View><Text style={styles.greeting}>{profile?.name ? `Olá, ${profile.name}!` : 'Olá, vamos treinar?'}</Text><Text style={styles.email}>{user?.email}{profile?.age ? ` • ${profile.age} anos` : ''}</Text></View><Pressable onPress={confirmLogout}><Text style={styles.logout}>Sair</Text></Pressable></View>
+    {/* Contas antigas completam o perfil aqui; o bloco some depois de salvar. */}
+    {!profile ? <View style={styles.profileCard}><Text style={styles.profileTitle}>Complete seu perfil</Text><Text style={styles.profileHelp}>Informe seus dados para personalizar o aplicativo.</Text><View style={styles.profileFields}><TextInput editable={!isSavingProfile} maxLength={60} onChangeText={setProfileName} placeholder="Seu nome" style={styles.profileInput} value={profileName} /><TextInput editable={!isSavingProfile} keyboardType="number-pad" maxLength={3} onChangeText={setProfileAge} placeholder="Idade" style={[styles.profileInput, styles.ageInput]} value={profileAge} /></View>{profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}<Pressable disabled={isSavingProfile} onPress={() => void handleSaveProfile()} style={styles.profileButton}><Text style={styles.profileButtonText}>{isSavingProfile ? 'Salvando...' : 'Salvar perfil'}</Text></Pressable></View> : null}
+    <View style={styles.summary}><Text style={styles.summaryLabel}>RESUMO DESTE MÊS</Text><View style={styles.summaryRow}><View><Text style={styles.summaryValue}>{monthWorkouts.length}</Text><Text style={styles.summaryUnit}>treinos</Text></View><View style={styles.divider} /><View><Text style={styles.summaryValue}>{monthMinutes}</Text><Text style={styles.summaryUnit}>minutos</Text></View></View><Text style={styles.summaryHelp}>Resumo calculado com os treinos do Firestore</Text></View>
+    <Text style={styles.filterLabel}>Filtrar por modalidade</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>{[ALL, ...WORKOUT_TYPES].map((item) => <Pressable key={item} onPress={() => setActivity(item)} style={[styles.chip, activity === item && styles.chipActive]}><Text style={[styles.chipText, activity === item && styles.chipTextActive]}>{item}</Text></Pressable>)}</ScrollView>
+    {error ? <Text style={styles.error}>{error}</Text> : null}
+    {/* FlatList renderiza os cards com eficiencia e cobre o estado vazio. */}
+    {isLoading ? <View style={styles.center}><ActivityIndicator color="#16a34a" size="large" /><Text style={styles.muted}>Carregando treinos...</Text></View> : <FlatList contentContainerStyle={visibleWorkouts.length ? styles.list : styles.emptyList} data={visibleWorkouts} keyExtractor={(item) => item.id} ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>{workouts.length ? 'Nenhum treino neste filtro' : 'Nenhum treino cadastrado'}</Text><Text style={styles.muted}>{workouts.length ? 'Escolha outra modalidade.' : 'Registre seu primeiro treino para acompanhar sua evolução.'}</Text></View>} renderItem={({ item }) => <WorkoutCard workout={item} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: item.id } })} />} />}
+    <Pressable onPress={() => router.push('/workout-form')} style={styles.addButton}><Text style={styles.addButtonText}>+ Registrar treino</Text></Pressable>
+    <ConfirmationModal confirmLabel="Sair" message="Tem certeza que deseja sair da sua conta?" onCancel={() => setIsLogoutConfirmationVisible(false)} onConfirm={handleLogout} title="Sair da conta" visible={isLogoutConfirmationVisible} />
+  </View></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: '#f8fafc',
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  intro: {
-    paddingBottom: 24,
-    paddingTop: 24,
-  },
-  eyebrow: {
-    color: '#2563eb',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  heading: {
-    color: '#0f172a',
-    fontSize: 32,
-    fontWeight: '800',
-  },
-  description: {
-    color: '#64748b',
-    fontSize: 16,
-    lineHeight: 24,
-    marginTop: 8,
-  },
-  form: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    borderWidth: 1,
-    color: '#0f172a',
-    flex: 1,
-    fontSize: 16,
-    minHeight: 52,
-    paddingHorizontal: 16,
-  },
-  errorBox: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-    padding: 14,
-  },
-  errorTitle: {
-    color: '#991b1b',
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  errorText: {
-    color: '#b91c1c',
-    lineHeight: 20,
-  },
-  centered: {
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-    justifyContent: 'center',
-  },
-  muted: {
-    color: '#64748b',
-    fontSize: 15,
-  },
-  list: {
-    paddingBottom: 24,
-  },
-  emptyList: {
-    flexGrow: 1,
-  },
-  emptyState: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    color: '#334155',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  taskItem: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    flexDirection: 'row',
-    marginBottom: 10,
-    padding: 16,
-  },
-  taskDot: {
-    backgroundColor: '#60a5fa',
-    borderRadius: 6,
-    height: 12,
-    marginRight: 14,
-    width: 12,
-  },
-  taskContent: {
-    flex: 1,
-  },
-  taskTitle: {
-    color: '#1e293b',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  taskDate: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 5,
-  },
+  safeArea: { backgroundColor: '#f8fafc', flex: 1 }, container: { flex: 1, paddingHorizontal: 20, paddingTop: 16 }, headerRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 }, greeting: { color: '#14532d', fontSize: 21, fontWeight: '800' }, email: { color: '#64748b', fontSize: 13, marginTop: 2 }, logout: { color: '#dc2626', fontWeight: '700', padding: 8 },
+  profileCard: { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', borderRadius: 14, borderWidth: 1, marginBottom: 16, padding: 14 }, profileTitle: { color: '#1e3a8a', fontSize: 16, fontWeight: '800' }, profileHelp: { color: '#64748b', fontSize: 12, marginBottom: 10, marginTop: 3 }, profileFields: { flexDirection: 'row', gap: 8 }, profileInput: { backgroundColor: '#fff', borderColor: '#cbd5e1', borderRadius: 9, borderWidth: 1, flex: 1, minHeight: 42, paddingHorizontal: 11 }, ageInput: { flex: 0, width: 82 }, profileError: { color: '#b91c1c', fontSize: 12, marginTop: 8 }, profileButton: { alignItems: 'center', backgroundColor: '#2563eb', borderRadius: 9, marginTop: 10, padding: 11 }, profileButtonText: { color: '#fff', fontWeight: '800' },
+  summary: { backgroundColor: '#15803d', borderRadius: 20, marginBottom: 16, padding: 20 }, summaryLabel: { color: '#bbf7d0', fontSize: 12, fontWeight: '800', letterSpacing: 1 }, summaryRow: { flexDirection: 'row', gap: 24, marginVertical: 10 }, summaryValue: { color: '#fff', fontSize: 30, fontWeight: '900' }, summaryUnit: { color: '#dcfce7' }, divider: { backgroundColor: '#4ade80', width: 1 }, summaryHelp: { color: '#dcfce7', fontSize: 12 },
+  filterLabel: { color: '#334155', fontSize: 13, fontWeight: '700' }, filters: { flexGrow: 0, marginBottom: 16, marginTop: 9 }, chip: { backgroundColor: '#e2e8f0', borderRadius: 20, marginRight: 8, paddingHorizontal: 13, paddingVertical: 8 }, chipActive: { backgroundColor: '#16a34a' }, chipText: { color: '#475569', fontSize: 13, fontWeight: '700' }, chipTextActive: { color: '#fff' },
+  error: { backgroundColor: '#fee2e2', borderRadius: 10, color: '#991b1b', marginBottom: 12, padding: 12 }, center: { alignItems: 'center', flex: 1, gap: 10, justifyContent: 'center' }, list: { paddingBottom: 90 }, emptyList: { flexGrow: 1, paddingBottom: 90 }, empty: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 30 }, emptyTitle: { color: '#334155', fontSize: 18, fontWeight: '800', marginBottom: 7, textAlign: 'center' }, muted: { color: '#64748b', lineHeight: 20, textAlign: 'center' },
+  addButton: { alignItems: 'center', backgroundColor: '#16a34a', borderRadius: 14, bottom: 18, elevation: 4, left: 20, minHeight: 52, justifyContent: 'center', position: 'absolute', right: 20 }, addButtonText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

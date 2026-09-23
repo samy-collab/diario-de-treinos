@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "firestore-expo-example",
-    "slug": "firestore-expo-example",
+    "name": "Diário de Treinos",
+    "slug": "diario-de-treinos",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "firestoreexpoexample",
+    "scheme": "diariodetreinos",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
