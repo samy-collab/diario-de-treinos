@@ -1,4 +1,11 @@
-export const WORKOUT_TYPES = ['Caminhada', 'Corrida', 'Ciclismo', 'Musculação', 'Natação', 'Outro'] as const;
+export const WORKOUT_TYPES = [
+  'Caminhada',
+  'Corrida',
+  'Ciclismo',
+  'Musculação',
+  'Natação',
+  'Outro',
+] as const;
 export const INTENSITIES = ['Leve', 'Moderada', 'Intensa'] as const;
 
 // "as const" permite derivar tipos apenas com os valores aceitos nas opcoes.

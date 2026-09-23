@@ -31,13 +31,19 @@ function createAuth() {
 // Adaptador de persistencia no formato esperado pelo Firebase Authentication.
 const asyncStoragePersistence = {
   type: 'LOCAL',
-  async _isAvailable() { return true; },
-  async _set(key: string, value: unknown) { await AsyncStorage.setItem(key, JSON.stringify(value)); },
+  async _isAvailable() {
+    return true;
+  },
+  async _set(key: string, value: unknown) {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  },
   async _get<T>(key: string): Promise<T | null> {
     const value = await AsyncStorage.getItem(key);
-    return value ? JSON.parse(value) as T : null;
+    return value ? (JSON.parse(value) as T) : null;
   },
-  async _remove(key: string) { await AsyncStorage.removeItem(key); },
+  async _remove(key: string) {
+    await AsyncStorage.removeItem(key);
+  },
   _addListener() {},
   _removeListener() {},
 } as Persistence;

@@ -25,24 +25,24 @@ Muitas vezes começamos a treinar, mas não lembramos quantos dias treinamos ou 
 
 O perfil fica em `users/{uid}` e contém:
 
-| Campo | Tipo | Exemplo |
-|---|---|---|
-| `name` | texto | `Ana` |
-| `age` | número inteiro | `25` |
-| `createdAt` | timestamp | data criada pelo servidor |
+| Campo       | Tipo           | Exemplo                   |
+| ----------- | -------------- | ------------------------- |
+| `name`      | texto          | `Ana`                     |
+| `age`       | número inteiro | `25`                      |
+| `createdAt` | timestamp      | data criada pelo servidor |
 
 Cada documento em `users/{uid}/workouts/{workoutId}` possui:
 
-| Campo | Tipo | Exemplo |
-|---|---|---|
-| `activity` | texto | `Corrida` |
-| `date` | texto no formato AAAA-MM-DD | `2026-09-22` |
-| `durationMinutes` | número | `45` |
-| `distanceKm` | número | `5.2` |
-| `loadKg` | número | `0` |
-| `intensity` | texto | `Moderada` |
-| `notes` | texto | `Treino no parque` |
-| `createdAt` | timestamp | data criada pelo servidor |
+| Campo             | Tipo                        | Exemplo                   |
+| ----------------- | --------------------------- | ------------------------- |
+| `activity`        | texto                       | `Corrida`                 |
+| `date`            | texto no formato AAAA-MM-DD | `2026-09-22`              |
+| `durationMinutes` | número                      | `45`                      |
+| `distanceKm`      | número                      | `5.2`                     |
+| `loadKg`          | número                      | `0`                       |
+| `intensity`       | texto                       | `Moderada`                |
+| `notes`           | texto                       | `Treino no parque`        |
+| `createdAt`       | timestamp                   | data criada pelo servidor |
 
 Distância e carga são opcionais na tela e são armazenadas como zero quando não informadas.
 

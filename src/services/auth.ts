@@ -1,4 +1,9 @@
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/types/user';
@@ -28,11 +33,15 @@ export function subscribeToUserProfile(
 ) {
   // Listener em tempo real cobre inclusive o instante em que uma conta nova
   // cria seu documento de perfil logo depois da autenticacao.
-  return onSnapshot(doc(db, 'users', userId), (snapshot) => {
-    if (!snapshot.exists()) return onProfile(null);
-    const data = snapshot.data();
-    onProfile({ name: String(data.name ?? ''), age: Number(data.age ?? 0) });
-  }, onError);
+  return onSnapshot(
+    doc(db, 'users', userId),
+    (snapshot) => {
+      if (!snapshot.exists()) return onProfile(null);
+      const data = snapshot.data();
+      onProfile({ name: String(data.name ?? ''), age: Number(data.age ?? 0) });
+    },
+    onError,
+  );
 }
 
 export async function saveUserProfile(userId: string, name: string, age: number) {

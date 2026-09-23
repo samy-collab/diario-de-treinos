@@ -1,16 +1,36 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Workout, WorkoutInput } from '@/types/workout';
 
 // O uid faz parte do caminho: cada conta possui sua propria subcolecao.
 const workoutsCollection = (userId: string) => collection(db, 'users', userId, 'workouts');
-const workoutDocument = (userId: string, workoutId: string) => doc(db, 'users', userId, 'workouts', workoutId);
+const workoutDocument = (userId: string, workoutId: string) =>
+  doc(db, 'users', userId, 'workouts', workoutId);
 
-export function subscribeToWorkouts(userId: string, onWorkouts: (items: Workout[]) => void, onError: (error: Error) => void) {
+export function subscribeToWorkouts(
+  userId: string,
+  onWorkouts: (items: Workout[]) => void,
+  onError: (error: Error) => void,
+) {
   // onSnapshot mantem a FlatList sincronizada; orderBy ordena pela data.
-  return onSnapshot(query(workoutsCollection(userId), orderBy('date', 'desc')), (snapshot) => {
-    onWorkouts(snapshot.docs.map((item) => mapWorkout(item.id, item.data())));
-  }, onError);
+  return onSnapshot(
+    query(workoutsCollection(userId), orderBy('date', 'desc')),
+    (snapshot) => {
+      onWorkouts(snapshot.docs.map((item) => mapWorkout(item.id, item.data())));
+    },
+    onError,
+  );
 }
 
 export async function getWorkout(userId: string, workoutId: string) {
@@ -34,5 +54,15 @@ export async function removeWorkout(userId: string, workoutId: string) {
 
 function mapWorkout(id: string, data: Record<string, any>): Workout {
   // Converte o formato flexivel do Firestore para o tipo usado pela interface.
-  return { id, activity: data.activity, date: String(data.date ?? ''), durationMinutes: Number(data.durationMinutes ?? 0), distanceKm: Number(data.distanceKm ?? 0), loadKg: Number(data.loadKg ?? 0), intensity: data.intensity, notes: String(data.notes ?? ''), createdAt: data.createdAt?.toDate?.() ?? null };
+  return {
+    id,
+    activity: data.activity,
+    date: String(data.date ?? ''),
+    durationMinutes: Number(data.durationMinutes ?? 0),
+    distanceKm: Number(data.distanceKm ?? 0),
+    loadKg: Number(data.loadKg ?? 0),
+    intensity: data.intensity,
+    notes: String(data.notes ?? ''),
+    createdAt: data.createdAt?.toDate?.() ?? null,
+  };
 }
