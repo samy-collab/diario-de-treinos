@@ -6,7 +6,7 @@ O Meu Treino é um aplicativo simples para registrar atividades físicas e acomp
 
 ## Por que escolhi esse tema?
 
-Muitas vezes começamos a treinar, mas não lembramos quantos dias treinamos ou quanto tempo dedicamos no mês. A proposta do aplicativo é guardar esse histórico de uma forma direta, sem precisar de planilhas ou anotações em papel.
+Me identifico profundamente com a necessidade de me concectar com a prática de esporte, desse modo me propus a fazer essa aplicação
 
 ## Funcionalidades
 
